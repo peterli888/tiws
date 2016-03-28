@@ -1,0 +1,73 @@
+  //mHandlerThread = new HandlerThread("websocket-thread");
+  //mHandlerThread.start();
+  //mHandler = new Handler(mHandlerThread.getLooper());
+        
+  应该放到mListener.onConnect 前面
+  因为一直连不上的话太多的handler造成 Could not create epoll instance.  errno=24 错误导致app重启
+  
+  
+  还可以修改添加onping onpong函数
+  webclient.java添加
+  public void ping(String data) {//liyong
+        mParser.ping(data);
+    }    
+	public void pong(String data) {//liyong
+        mParser.pong(data);
+    }
+      public interface Listener {
+       这里 public void onPing(String message);
+       这里 public void onPong(String message);
+       原来 public void onConnect();
+  parser添加
+  public void ping(String message) {
+        mClient.sendFrame(frame(message, OP_PING, -1));
+    }
+    public void pong(String message) {
+        mClient.sendFrame(frame(message, OP_PONG, -1));
+    }
+  还有
+ else if (opcode == OP_PING) {
+            /*if (payload.length > 125) { throw new ProtocolError("Ping payload too large"); }			
+    		if (TiwsModule.DBG) {
+    			Log.d(TiwsModule.LCAT, "Sending pong!!");
+    		}
+            mClient.sendFrame(frame(payload, OP_PONG, -1));*/
+			//liyong
+            String message = encode(payload);
+            mClient.getListener().onPing(message);
+
+        } else if (opcode == OP_PONG) {
+            // FIXME: Fire callback...
+    		if (TiwsModule.DBG) {
+    			//Log.d(TiwsModule.LCAT, "Got pong! " + message);
+    		}
+			//liyong
+            String message = encode(payload);
+            mClient.getListener().onPong(message);
+        }
+  ==proxy.java添加
+  在client = new WebSocketClient(wsURI, new WebSocketClient.Listener() {部分添加
+  				//liyong
+				@Override
+				public void onPing(String message) {
+					if (client == null) {
+						return;
+					}
+					
+					//Log.d(TiwsModule.LCAT, "===ping==="  );
+
+					KrollDict event = new KrollDict();
+					event.put("data", message);
+					self.fireEvent("ping",event);
+				}
+
+				@Override
+				public void onPong(String message) {
+					if (client == null) {
+						return;
+					}
+					KrollDict event = new KrollDict();
+					event.put("data", message);
+					self.fireEvent("pong",event);
+				}
+				//liyong
